@@ -2,6 +2,7 @@ import { config as loadDotenv } from 'dotenv';
 import { DataSource, DataSourceOptions } from 'typeorm';
 import * as path from 'path';
 import { Scan } from '../entities/scan.entity';
+import { Prompt } from '../entities/prompt.entity';
 
 // The real .env file lives at backend/.env (a symlink at the project
 // root, `.env -> backend/.env`, lets `docker compose up` find the same
@@ -29,7 +30,7 @@ export const typeOrmDataSourceOptions: DataSourceOptions = {
   username: process.env.POSTGRES_USER,
   password: process.env.POSTGRES_PASSWORD,
   database: process.env.POSTGRES_DB,
-  entities: [Scan],
+  entities: [Scan, Prompt],
   synchronize: false,
 };
 

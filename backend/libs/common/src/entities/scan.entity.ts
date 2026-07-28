@@ -4,8 +4,10 @@ import {
   Column,
   CreateDateColumn,
   UpdateDateColumn,
+  OneToMany,
 } from 'typeorm';
 import { ScanPromptStatus } from '../enums/scan-prompt-status.enum';
+import { Prompt } from './prompt.entity';
 
 @Entity('scan')
 export class Scan {
@@ -50,7 +52,6 @@ export class Scan {
   @Column({ type: 'timestamptz', nullable: true })
   completedAt: Date | null;
 
-  // The `prompts` relation (OneToMany -> Prompt) is added in STORY-004,
-  // once the Prompt entity exists - TypeORM relations are declared on
-  // both sides, so that story touches this file too.
+  @OneToMany(() => Prompt, (prompt) => prompt.scan)
+  prompts: Prompt[];
 }
