@@ -6,7 +6,11 @@ services:
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
     ports:
-      - "${POSTGRES_PORT:-5432}:5432"
+      # Host-side port is configurable via POSTGRES_PORT - defaults to
+      # 5433 (not 5432) because a different, unrelated local Postgres
+      # install may already be using 5432 on the host machine. The
+      # container's own internal port stays 5432 regardless.
+      - "${POSTGRES_PORT:-5433}:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
 
