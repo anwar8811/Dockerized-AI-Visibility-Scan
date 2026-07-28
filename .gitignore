@@ -1,0 +1,26 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+coverage/
+*.tsbuildinfo
+
+# Environment secrets - never commit real credentials
+.env
+.env.*
+!.env.example
+
+# OS/editor noise
+.DS_Store
+*.log
+
+# Planning/local-only material - not part of the shipped code repo.
+# (Dev-docs template convention: this planning material lives alongside
+# the code repo, not inside its git history - see ai-visibility-scan-dev-docs
+# folder structure notes.)
+.claude/
+ai-visibility-scan-dev-docs/
+explanations/
+Necessary_files/
+INITIAL-PROMPT.md
