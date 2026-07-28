@@ -1,7 +1,8 @@
 import { Module } from '@nestjs/common';
-import { CommonModule } from '@app/common';
+import { TypeOrmModule } from '@nestjs/typeorm';
+import { typeOrmDataSourceOptions } from '@app/common';
 
 @Module({
-  imports: [CommonModule],
+  imports: [TypeOrmModule.forRoot(typeOrmDataSourceOptions)],
 })
 export class WorkerModule {}
