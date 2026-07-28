@@ -6,9 +6,11 @@ import {
   ManyToOne,
   JoinColumn,
   Index,
+  OneToOne,
 } from 'typeorm';
 import { ScanPromptStatus } from '../enums/scan-prompt-status.enum';
 import { Scan } from './scan.entity';
+import { PromptResult } from './prompt-result.entity';
 
 @Entity('prompt')
 export class Prompt {
@@ -42,6 +44,6 @@ export class Prompt {
   @CreateDateColumn({ type: 'timestamptz' })
   createdAt: Date;
 
-  // The `result` relation (OneToOne -> PromptResult) is added in
-  // STORY-005, once the PromptResult entity exists.
+  @OneToOne(() => PromptResult, (result) => result.prompt)
+  result: PromptResult | null;
 }
