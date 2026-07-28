@@ -9,6 +9,7 @@ import {
   Prompt,
 } from '@app/common';
 import { PromptScanProcessor } from './processors/prompt-scan.processor';
+import { ProductsModule } from './products/products.module';
 
 @Module({
   imports: [
@@ -16,6 +17,7 @@ import { PromptScanProcessor } from './processors/prompt-scan.processor';
     TypeOrmModule.forFeature([Scan, Prompt]),
     BullModule.forRoot({ connection: bullMqConnection }),
     BullModule.registerQueue({ name: PROMPT_SCAN_QUEUE }),
+    ProductsModule,
   ],
   providers: [PromptScanProcessor],
 })
