@@ -1,37 +1,68 @@
 import { Injectable } from '@nestjs/common';
 import { InjectDataSource } from '@nestjs/typeorm';
+import { InjectQueue } from '@nestjs/bullmq';
 import { DataSource } from 'typeorm';
-import { Scan, Prompt } from '@app/common';
+import { Queue } from 'bullmq';
+import {
+  Scan,
+  Prompt,
+  PROMPT_SCAN_QUEUE,
+  PROMPT_SCAN_JOB_NAME,
+  buildPromptJobId,
+} from '@app/common';
 import { CreateScanDto } from './dto/create-scan.dto';
 import { ScanDetailResponse } from './interfaces/scan-detail-response.interface';
 
 @Injectable()
 export class ScansService {
-  constructor(@InjectDataSource() private readonly dataSource: DataSource) {}
+  constructor(
+    @InjectDataSource() private readonly dataSource: DataSource,
+    @InjectQueue(PROMPT_SCAN_QUEUE) private readonly promptScanQueue: Queue,
+  ) {}
 
   async create(dto: CreateScanDto): Promise<{ scanId: string; status: string }> {
     // One Scan row + one Prompt row per submitted prompt, in a single
     // transaction - a partial write (scan created but a prompt insert
     // failing) can never happen.
-    return this.dataSource.transaction(async (manager) => {
-      const scan = manager.create(Scan, {
-        brandName: dto.brandName,
-        website: dto.website,
-        competitors: dto.competitors,
-        totalPrompts: dto.prompts.length,
-      });
-      await manager.save(scan);
+    const { scan, prompts } = await this.dataSource.transaction(
+      async (manager) => {
+        const scan = manager.create(Scan, {
+          brandName: dto.brandName,
+          website: dto.website,
+          competitors: dto.competitors,
+          totalPrompts: dto.prompts.length,
+        });
+        await manager.save(scan);
 
-      const prompts = dto.prompts.map((text) =>
-        manager.create(Prompt, { scanId: scan.id, text }),
-      );
-      await manager.save(prompts);
+        const prompts = dto.prompts.map((text) =>
+          manager.create(Prompt, { scanId: scan.id, text }),
+        );
+        await manager.save(prompts);
 
-      // No BullMQ job is enqueued here - that is deliberately deferred to
-      // STORY-009, so this story is reviewable purely as "can I create a
-      // scan," independent of the queue.
-      return { scanId: scan.id, status: scan.status };
-    });
+        return { scan, prompts };
+      },
+    );
+
+    // Enqueue only after the transaction has committed - a job must never
+    // point at a scan/prompt row that doesn't actually exist yet. Each
+    // prompt becomes its own independent job; the deterministic jobId
+    // means accidentally enqueueing the same prompt twice is a no-op,
+    // never a duplicate job.
+    await Promise.all(
+      prompts.map((prompt) =>
+        this.promptScanQueue.add(
+          PROMPT_SCAN_JOB_NAME,
+          { scanId: scan.id, promptId: prompt.id },
+          {
+            jobId: buildPromptJobId(scan.id, prompt.id),
+            attempts: 3,
+            backoff: { type: 'exponential', delay: 2000 },
+          },
+        ),
+      ),
+    );
+
+    return { scanId: scan.id, status: scan.status };
   }
 
   // This query's shape is fixed here, in STORY-007, even though no
