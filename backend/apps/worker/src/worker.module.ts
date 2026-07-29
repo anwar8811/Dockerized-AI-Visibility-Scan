@@ -10,6 +10,7 @@ import {
 } from '@app/common';
 import { PromptScanProcessor } from './processors/prompt-scan.processor';
 import { ProductsModule } from './products/products.module';
+import { OpenRouterModule } from './ai/openrouter.module';
 
 @Module({
   imports: [
@@ -18,6 +19,7 @@ import { ProductsModule } from './products/products.module';
     BullModule.forRoot({ connection: bullMqConnection }),
     BullModule.registerQueue({ name: PROMPT_SCAN_QUEUE }),
     ProductsModule,
+    OpenRouterModule,
   ],
   providers: [PromptScanProcessor],
 })
