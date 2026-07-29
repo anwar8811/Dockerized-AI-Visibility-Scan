@@ -180,6 +180,28 @@ describe('PromptScanProcessor', () => {
     });
   });
 
+  it('logs a failure line and rethrows unchanged when the OpenRouter call fails (brief §24 "OpenRouter Unavailable")', async () => {
+    const { processor, openRouterService, analyzerClientService } = buildProcessor({
+      queryResult: { processedPrompts: 1, totalPrompts: 3 },
+    });
+    const aiError = new Error('OpenRouter unavailable');
+    openRouterService.generate.mockRejectedValueOnce(aiError);
+
+    const errorSpy = jest.spyOn(Logger.prototype, 'error');
+
+    const job = { id: 'job-1', data: { scanId, promptId } } as Job<{
+      scanId: string;
+      promptId: string;
+    }>;
+
+    await expect(processor.process(job)).rejects.toBe(aiError);
+
+    expect(errorSpy).toHaveBeenCalledWith(`[AI] Request failed for prompt ${promptId}`);
+    // Never reaches the analyzer call once OpenRouter has already failed.
+    expect(analyzerClientService.analyze).not.toHaveBeenCalled();
+    errorSpy.mockRestore();
+  });
+
   it('logs the brief §25 failure line and rethrows unchanged when the analyzer call fails', async () => {
     const { processor, analyzerClientService } = buildProcessor({
       queryResult: { processedPrompts: 1, totalPrompts: 3 },

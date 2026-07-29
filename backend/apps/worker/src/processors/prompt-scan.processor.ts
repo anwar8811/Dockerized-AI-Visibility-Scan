@@ -46,12 +46,21 @@ export class PromptScanProcessor extends WorkerHost {
     });
 
     // Steps 2-3: ask OpenRouter, then hand its raw response to the Rust
-    // analyzer for deterministic brand/competitor/citation detection. Any
-    // error thrown here is deliberately left uncaught (beyond the
-    // log-and-rethrow below) - it must propagate so BullMQ's configured
-    // retry (STORY-009) takes over; STORY-020 is where the retry/failure
-    // semantics get hardened, not this story.
-    const aiResponse = await this.openRouterService.generate(prompt.text);
+    // analyzer for deterministic brand/competitor/citation detection.
+    // Brief §24 "OpenRouter/Ollama Unavailable" and "Rust Analyzer
+    // Unavailable" both require the exact same behavior: the BullMQ job
+    // retries, the prompt is never marked completed. Both catches below
+    // only log-and-rethrow (never swallow) - the actual retry decision is
+    // BullMQ's (attempts: 3 / exponential backoff, STORY-009), not this
+    // processor's; a second, manual retry loop here would just duplicate
+    // that (KAD-09).
+    let aiResponse: string;
+    try {
+      aiResponse = await this.openRouterService.generate(prompt.text);
+    } catch (error) {
+      this.logger.error(`[AI] Request failed for prompt ${promptId}`);
+      throw error;
+    }
 
     let analysis: Awaited<ReturnType<AnalyzerClientService['analyze']>>;
     try {
