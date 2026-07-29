@@ -6,7 +6,10 @@ describe('PromptScanProcessor', () => {
   const scanId = 'scan-1';
   const promptId = 'prompt-1';
 
-  function buildProcessor() {
+  function buildProcessor(options: {
+    queryResult: { processedPrompts: number; totalPrompts: number };
+    findOneResult?: unknown;
+  }) {
     const prompt = { id: promptId, text: 'What CRM should I use?' };
     const scan = { id: scanId, brandName: 'NimbusCRM', competitors: ['OrbitDesk'] };
 
@@ -23,7 +26,11 @@ describe('PromptScanProcessor', () => {
       create: jest.fn((_entity, data) => data),
       save: jest.fn(),
       update: jest.fn(),
-      increment: jest.fn(),
+      // Mirrors what the real pg driver returns for an UPDATE ... RETURNING
+      // via manager.query(): a [rows, affectedRowCount] tuple, not the rows
+      // array directly - this is exactly the shape bug a live E2E run caught.
+      query: jest.fn().mockResolvedValue([[options.queryResult], 1]),
+      findOne: jest.fn().mockResolvedValue(options.findOneResult),
     };
     const dataSource = {
       transaction: jest.fn((callback: (manager: unknown) => Promise<unknown>) => callback(manager)),
@@ -37,6 +44,14 @@ describe('PromptScanProcessor', () => {
     };
     const openRouterService = { generate: jest.fn().mockResolvedValue('NimbusCRM is great.') };
     const analyzerClientService = { analyze: jest.fn().mockResolvedValue(analysis) };
+    const visibilityScoringService = {
+      computeAggregates: jest.fn().mockReturnValue({
+        visibilityScore: 60,
+        competitorMentions: { OrbitDesk: 3 },
+        topCompetitor: 'OrbitDesk',
+        citationDomains: ['reviews.test'],
+      }),
+    };
 
     const processor = new PromptScanProcessor(
       promptRepository as any,
@@ -44,6 +59,7 @@ describe('PromptScanProcessor', () => {
       dataSource as any,
       openRouterService as any,
       analyzerClientService as any,
+      visibilityScoringService as any,
     );
 
     return {
@@ -57,6 +73,7 @@ describe('PromptScanProcessor', () => {
       openRouterService,
       analyzerClientService,
       analysis,
+      visibilityScoringService,
     };
   }
 
@@ -72,7 +89,7 @@ describe('PromptScanProcessor', () => {
       openRouterService,
       analyzerClientService,
       analysis,
-    } = buildProcessor();
+    } = buildProcessor({ queryResult: { processedPrompts: 1, totalPrompts: 3 } });
 
     const job = { id: 'job-1', data: { scanId, promptId } } as Job<{
       scanId: string;
@@ -108,6 +125,57 @@ describe('PromptScanProcessor', () => {
     expect(manager.update).toHaveBeenCalledWith(Prompt, promptId, {
       status: ScanPromptStatus.COMPLETED,
     });
-    expect(manager.increment).toHaveBeenCalledWith(Scan, { id: scanId }, 'processedPrompts', 1);
+
+    // The atomic increment-and-read happened...
+    expect(manager.query).toHaveBeenCalledWith(expect.stringContaining('RETURNING'), [scanId]);
+    // ...but since processedPrompts (1) !== totalPrompts (3), the scan is
+    // NOT marked complete, and no scoring/aggregate query ever runs.
+    expect(manager.findOne).not.toHaveBeenCalled();
+    expect(manager.update).not.toHaveBeenCalledWith(
+      Scan,
+      scanId,
+      expect.objectContaining({ status: ScanPromptStatus.COMPLETED }),
+    );
+  });
+
+  it('marks the scan COMPLETED with the computed visibility score when this is the last prompt to finish', async () => {
+    const completedScan = {
+      prompts: [
+        { result: { brandMentioned: true, competitorsMentioned: ['OrbitDesk'], citationDomains: ['reviews.test'] } },
+        { result: { brandMentioned: false, competitorsMentioned: [], citationDomains: [] } },
+        { result: null },
+      ],
+    };
+
+    const { processor, manager, visibilityScoringService } = buildProcessor({
+      queryResult: { processedPrompts: 3, totalPrompts: 3 },
+      findOneResult: completedScan,
+    });
+
+    const job = { id: 'job-3', data: { scanId, promptId } } as Job<{
+      scanId: string;
+      promptId: string;
+    }>;
+
+    await processor.process(job);
+
+    expect(manager.findOne).toHaveBeenCalledWith(Scan, {
+      where: { id: scanId },
+      relations: { prompts: { result: true } },
+    });
+
+    // Only the two prompts that actually have a PromptResult are passed in -
+    // the still-null one (shouldn't happen on this exact path, but the
+    // filter is what makes the code safe regardless) is excluded.
+    expect(visibilityScoringService.computeAggregates).toHaveBeenCalledWith(
+      [completedScan.prompts[0].result, completedScan.prompts[1].result],
+      3,
+    );
+
+    expect(manager.update).toHaveBeenCalledWith(Scan, scanId, {
+      status: ScanPromptStatus.COMPLETED,
+      completedAt: expect.any(Date),
+      visibilityScore: 60,
+    });
   });
 });

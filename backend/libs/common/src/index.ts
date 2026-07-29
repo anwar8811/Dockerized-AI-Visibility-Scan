@@ -6,3 +6,4 @@ export * from './config/typeorm.config';
 export * from './config/bullmq.config';
 export * from './filters/http-exception.filter';
 export * from './queue/prompt-scan.queue';
+export * from './scoring/visibility-scoring';

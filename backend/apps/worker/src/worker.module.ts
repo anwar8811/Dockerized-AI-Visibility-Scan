@@ -13,6 +13,7 @@ import { PromptScanProcessor } from './processors/prompt-scan.processor';
 import { ProductsModule } from './products/products.module';
 import { OpenRouterModule } from './ai/openrouter.module';
 import { AnalyzerClientModule } from './analyzer/analyzer-client.module';
+import { VisibilityScoringModule } from './scoring/visibility-scoring.module';
 
 @Module({
   imports: [
@@ -23,6 +24,7 @@ import { AnalyzerClientModule } from './analyzer/analyzer-client.module';
     ProductsModule,
     OpenRouterModule,
     AnalyzerClientModule,
+    VisibilityScoringModule,
   ],
   providers: [PromptScanProcessor],
 })
