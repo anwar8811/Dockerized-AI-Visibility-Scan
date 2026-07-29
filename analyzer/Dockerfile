@@ -21,6 +21,11 @@ RUN cargo build --release
 FROM debian:bookworm-slim AS runtime
 WORKDIR /app/analyzer
 
+# curl is used only by docker-compose.yml's healthcheck (STORY-023),
+# hitting this container's own GET /health.
+RUN apt-get update && apt-get install -y --no-install-recommends curl \
+    && rm -rf /var/lib/apt/lists/*
+
 COPY --from=build /app/analyzer/target/release/analyzer ./analyzer
 
 RUN groupadd --system app && useradd --system --gid app app

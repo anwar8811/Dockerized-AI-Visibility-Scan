@@ -16,6 +16,12 @@ RUN npm ci
 COPY tsconfig.json tsconfig.build.json nest-cli.json ./
 COPY apps ./apps
 COPY libs ./libs
+# migrations/ isn't needed to build the api app itself, but this same
+# `build` stage doubles as the one-shot `migrate` service's image in
+# docker-compose.yml (STORY-023) - it runs `npm run migration:run`
+# straight from this stage's full source + dev toolchain (ts-node), so
+# the migration files need to be present here.
+COPY migrations ./migrations
 
 # Builds ONLY the api project. Because nest-cli.json has "webpack": true,
 # this bundles apps/api's compiled output together with whatever
@@ -34,6 +40,10 @@ ENV NODE_ENV=production
 
 COPY package.json package-lock.json ./
 RUN npm ci --omit=dev
+
+# curl is used only by docker-compose.yml's healthcheck (STORY-023),
+# hitting this container's own GET /health.
+RUN apk add --no-cache curl
 
 COPY --from=build /app/backend/dist/apps/api ./dist/apps/api
 

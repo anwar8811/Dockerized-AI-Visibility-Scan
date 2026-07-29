@@ -6,18 +6,126 @@ services:
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
     ports:
-      # Host-side port is configurable via POSTGRES_PORT - defaults to
-      # 5433 (not 5432) because a different, unrelated local Postgres
-      # install may already be using 5432 on the host machine. The
-      # container's own internal port stays 5432 regardless.
-      - "${POSTGRES_PORT:-5433}:5432"
+      # Host-side only (e.g. `psql -h localhost -p 5433`) - hardcoded, not
+      # driven by POSTGRES_PORT: POSTGRES_PORT (.env) is what api/worker/
+      # migrate use to reach Postgres *inside* the Docker network (5432,
+      # Postgres's own internal port, STORY-023) - a different concern from
+      # this host-side mapping. 5433 avoids colliding with a possible
+      # native Postgres already using 5432 on the host machine.
+      - "5433:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
 
   redis:
     image: redis:7-alpine
     ports:
-      - "${REDIS_PORT:-6379}:6379"
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # One-shot init container - the same pattern the brief's original design
+  # used for "ollama-init" (a container that does one job, then exits).
+  # Runs the TypeORM migrations from the api image's `build` stage (full
+  # source + dev toolchain, ts-node), then exits 0. api/worker wait for
+  # this to finish successfully (not just start) before they run - a fresh
+  # `docker compose up --build` clone has no schema at all until this runs.
+  migrate:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.api
+      target: build
+    environment:
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    command: ["npm", "run", "migration:run"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  api:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.api
+    ports:
+      - "3000:3000"
+    environment:
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  worker:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.worker
+    # Bind-mounts the host's data/products.json into the container - this
+    # is the "container-specific path" ProductsService's own comment
+    # anticipated back in STORY-011. Read-only: the worker never writes to
+    # this dataset.
+    volumes:
+      - ./data:/app/data:ro
+    environment:
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      OPENROUTER_API_KEY: ${OPENROUTER_API_KEY}
+      OPENROUTER_MODEL: ${OPENROUTER_MODEL}
+      OPENROUTER_BASE_URL: ${OPENROUTER_BASE_URL}
+      ANALYZER_URL: http://analyzer:8080
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      analyzer:
+        condition: service_healthy
+    # No ports: - the worker is a background BullMQ consumer, it never
+    # listens on a port (STORY-001/STORY-010).
+
+  analyzer:
+    build:
+      context: ./analyzer
+    ports:
+      - "8080:8080"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 5s
 
 volumes:
   postgres_data:
