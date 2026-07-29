@@ -1,0 +1,54 @@
+# syntax=docker/dockerfile:1
+
+# ---- Stage 1: build ----
+# Needs the full devDependencies (Nest CLI, webpack, TypeScript) to compile;
+# none of this stage ends up in the final image.
+FROM node:20-alpine AS build
+WORKDIR /app/backend
+
+COPY package.json package-lock.json ./
+RUN npm ci
+
+# nest-cli.json declares api/worker/common as one monorepo (KAD-01) - both
+# apps/ subfolders are copied here (not just apps/api) so Nest CLI's
+# monorepo project resolution always finds every declared project on disk,
+# even though only apps/api + libs/common actually get compiled below.
+COPY tsconfig.json tsconfig.build.json nest-cli.json ./
+COPY apps ./apps
+COPY libs ./libs
+# migrations/ isn't needed to build the api app itself, but this same
+# `build` stage doubles as the one-shot `migrate` service's image in
+# docker-compose.yml (STORY-023) - it runs `npm run migration:run`
+# straight from this stage's full source + dev toolchain (ts-node), so
+# the migration files need to be present here.
+COPY migrations ./migrations
+
+# Builds ONLY the api project. Because nest-cli.json has "webpack": true,
+# this bundles apps/api's compiled output together with whatever
+# libs/common code it imports into one file - dist/apps/api/main.js - so
+# the runtime stage never needs a separate libs/common output copied in.
+RUN npx nest build api
+
+# ---- Stage 2: runtime ----
+# Slim image: only the compiled output + production node_modules (the
+# packages webpack left external, e.g. typeorm/pg/bullmq/axios) - no
+# source, no devDependencies, no secrets (every credential comes from
+# .env at container runtime, never baked in here).
+FROM node:20-alpine AS runtime
+WORKDIR /app/backend
+ENV NODE_ENV=production
+
+COPY package.json package-lock.json ./
+RUN npm ci --omit=dev
+
+# curl is used only by docker-compose.yml's healthcheck (STORY-023),
+# hitting this container's own GET /health.
+RUN apk add --no-cache curl
+
+COPY --from=build /app/backend/dist/apps/api ./dist/apps/api
+
+RUN addgroup -S app && adduser -S app -G app
+USER app
+
+EXPOSE 3000
+CMD ["node", "dist/apps/api/main.js"]

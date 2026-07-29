@@ -10,11 +10,12 @@ export class ProductsService implements OnModuleInit {
 
   onModuleInit(): void {
     // data/products.json lives at the project root, one level *above*
-    // backend/ - not inside backend/ itself. All npm scripts run with
-    // cwd = backend/, so the project root is reliably one level up (same
-    // reasoning as the .env path story in STORY-003, before it moved).
-    // This changes once the worker itself runs inside Docker (STORY-023),
-    // where the file will be bind-mounted at a container-specific path.
+    // backend/ - not inside backend/ itself. This resolves correctly both
+    // on the host (cwd = backend/, same reasoning as the .env path story in
+    // STORY-003) and inside the worker's Docker container (STORY-023),
+    // where docker-compose.yml bind-mounts the host's data/ folder to
+    // /app/data and WORKDIR is /app/backend - "one level up" lands on
+    // /app/data either way, no code branching needed.
     const filePath = path.resolve(process.cwd(), '..', 'data', 'products.json');
     const raw = fs.readFileSync(filePath, 'utf-8');
     this.products = JSON.parse(raw) as Product[];
