@@ -1,0 +1,74 @@
+[
+  {
+    "name": "NimbusCRM",
+    "description": "A lightweight CRM designed for small service agencies.",
+    "targetCustomer": "Small agencies and consulting teams",
+    "features": [
+      "Contact management",
+      "Sales pipeline",
+      "Follow-up reminders"
+    ],
+    "pricingDescription": "Designed for small teams with simple monthly pricing.",
+    "sourceUrls": [
+      "https://reviews.test/nimbuscrm",
+      "https://comparison.test/crm-tools"
+    ]
+  },
+  {
+    "name": "OrbitDesk",
+    "description": "An all-in-one CRM built for fast-growing sales teams.",
+    "targetCustomer": "Mid-size B2B sales teams",
+    "features": [
+      "Deal tracking",
+      "Email sequences",
+      "Sales analytics dashboard"
+    ],
+    "pricingDescription": "Tiered pricing based on team size, with a free trial.",
+    "sourceUrls": [
+      "https://reviews.test/orbitdesk",
+      "https://comparison.test/crm-tools"
+    ]
+  },
+  {
+    "name": "ClientLoop",
+    "description": "A client relationship and follow-up tool built for consulting and service businesses.",
+    "targetCustomer": "Freelancers and small consulting firms",
+    "features": [
+      "Client timeline view",
+      "Automated follow-up sequences",
+      "Simple invoicing"
+    ],
+    "pricingDescription": "Flat monthly fee, no per-seat charges.",
+    "sourceUrls": [
+      "https://reviews.test/clientloop"
+    ]
+  },
+  {
+    "name": "FunnelForge",
+    "description": "A sales-funnel-focused CRM for marketing-driven teams.",
+    "targetCustomer": "Marketing agencies and funnel-based sales teams",
+    "features": [
+      "Visual funnel builder",
+      "Lead scoring",
+      "Campaign attribution tracking"
+    ],
+    "pricingDescription": "Usage-based pricing tied to number of active funnels.",
+    "sourceUrls": [
+      "https://reviews.test/funnelforge"
+    ]
+  },
+  {
+    "name": "LeadHarbor",
+    "description": "A lead-management CRM focused on capturing and nurturing inbound leads.",
+    "targetCustomer": "Small businesses relying on inbound leads",
+    "features": [
+      "Lead capture forms",
+      "Lead nurturing sequences",
+      "Basic reporting"
+    ],
+    "pricingDescription": "Free tier for small teams, paid tiers for advanced automation.",
+    "sourceUrls": [
+      "https://reviews.test/leadharbor"
+    ]
+  }
+]
