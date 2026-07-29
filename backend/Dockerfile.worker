@@ -1,0 +1,45 @@
+# syntax=docker/dockerfile:1
+
+# ---- Stage 1: build ----
+# Needs the full devDependencies (Nest CLI, webpack, TypeScript) to compile;
+# none of this stage ends up in the final image.
+FROM node:20-alpine AS build
+WORKDIR /app/backend
+
+COPY package.json package-lock.json ./
+RUN npm ci
+
+# nest-cli.json declares api/worker/common as one monorepo (KAD-01) - both
+# apps/ subfolders are copied here (not just apps/worker) so Nest CLI's
+# monorepo project resolution always finds every declared project on disk,
+# even though only apps/worker + libs/common actually get compiled below.
+COPY tsconfig.json tsconfig.build.json nest-cli.json ./
+COPY apps ./apps
+COPY libs ./libs
+
+# Builds ONLY the worker project. Because nest-cli.json has "webpack": true,
+# this bundles apps/worker's compiled output together with whatever
+# libs/common code it imports into one file - dist/apps/worker/main.js - so
+# the runtime stage never needs a separate libs/common output copied in.
+RUN npx nest build worker
+
+# ---- Stage 2: runtime ----
+# Slim image: only the compiled output + production node_modules (the
+# packages webpack left external, e.g. typeorm/pg/bullmq/axios) - no
+# source, no devDependencies, no secrets (every credential comes from
+# .env at container runtime, never baked in here).
+FROM node:20-alpine AS runtime
+WORKDIR /app/backend
+ENV NODE_ENV=production
+
+COPY package.json package-lock.json ./
+RUN npm ci --omit=dev
+
+COPY --from=build /app/backend/dist/apps/worker ./dist/apps/worker
+
+RUN addgroup -S app && adduser -S app -G app
+USER app
+
+# No EXPOSE - the worker is a background BullMQ consumer, it never listens
+# on a port (STORY-001/STORY-010).
+CMD ["node", "dist/apps/worker/main.js"]
