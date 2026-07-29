@@ -7,19 +7,24 @@ import {
   PROMPT_SCAN_QUEUE,
   Scan,
   Prompt,
+  PromptResult,
 } from '@app/common';
 import { PromptScanProcessor } from './processors/prompt-scan.processor';
 import { ProductsModule } from './products/products.module';
 import { OpenRouterModule } from './ai/openrouter.module';
+import { AnalyzerClientModule } from './analyzer/analyzer-client.module';
+import { VisibilityScoringModule } from './scoring/visibility-scoring.module';
 
 @Module({
   imports: [
     TypeOrmModule.forRoot(typeOrmDataSourceOptions),
-    TypeOrmModule.forFeature([Scan, Prompt]),
+    TypeOrmModule.forFeature([Scan, Prompt, PromptResult]),
     BullModule.forRoot({ connection: bullMqConnection }),
     BullModule.registerQueue({ name: PROMPT_SCAN_QUEUE }),
     ProductsModule,
     OpenRouterModule,
+    AnalyzerClientModule,
+    VisibilityScoringModule,
   ],
   providers: [PromptScanProcessor],
 })

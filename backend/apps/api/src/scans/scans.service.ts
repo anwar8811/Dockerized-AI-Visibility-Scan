@@ -9,6 +9,7 @@ import {
   PROMPT_SCAN_QUEUE,
   PROMPT_SCAN_JOB_NAME,
   buildPromptJobId,
+  computeCompetitorCitationMetrics,
 } from '@app/common';
 import { CreateScanDto } from './dto/create-scan.dto';
 import { ScanDetailResponse } from './interfaces/scan-detail-response.interface';
@@ -66,10 +67,10 @@ export class ScansService {
   }
 
   // This query's shape is fixed here, in STORY-007, even though no
-  // PromptResult rows exist yet at this stage of the build (so every
-  // aggregate below comes back empty/default). STORY-018 (visibility
-  // scoring + scan completion) only ever has to make prompt_result rows
-  // exist - it never needs to touch this method's shape.
+  // PromptResult rows existed yet at that stage of the build (so every
+  // aggregate below came back empty/default). STORY-018 (visibility
+  // scoring + scan completion) only ever had to make prompt_result rows
+  // exist - it never needed to touch this method's shape.
   async getScanWithAggregates(id: string): Promise<ScanDetailResponse | null> {
     const scan = await this.dataSource.getRepository(Scan).findOne({
       where: { id },
@@ -83,20 +84,11 @@ export class ScansService {
     // that already have a PromptResult are included, not every prompt.
     const completedPrompts = scan.prompts.filter((prompt) => prompt.result);
 
-    const competitorMentions: Record<string, number> = {};
-    for (const prompt of completedPrompts) {
-      for (const competitor of prompt.result!.competitorsMentioned) {
-        competitorMentions[competitor] = (competitorMentions[competitor] ?? 0) + 1;
-      }
-    }
-
-    const topCompetitor =
-      Object.entries(competitorMentions).sort((a, b) => b[1] - a[1])[0]?.[0] ??
-      null;
-
-    const citationDomains = [
-      ...new Set(completedPrompts.flatMap((prompt) => prompt.result!.citationDomains)),
-    ];
+    // Same formula the worker uses to decide scan completion (STORY-018) -
+    // computeCompetitorCitationMetrics lives once, in @app/common, and is
+    // never re-derived here.
+    const { competitorMentions, topCompetitor, citationDomains } =
+      computeCompetitorCitationMetrics(completedPrompts.map((prompt) => prompt.result!));
 
     const results = completedPrompts.map((prompt) => ({
       promptId: prompt.id,
