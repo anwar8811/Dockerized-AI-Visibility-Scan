@@ -1,3 +1,4 @@
+import { Logger } from '@nestjs/common';
 import { Job } from 'bullmq';
 import { Prompt, Scan, PromptResult, ScanPromptStatus } from '@app/common';
 import { PromptScanProcessor } from './prompt-scan.processor';
@@ -176,6 +177,60 @@ describe('PromptScanProcessor', () => {
       status: ScanPromptStatus.COMPLETED,
       completedAt: expect.any(Date),
       visibilityScore: 60,
+    });
+  });
+
+  it('logs the brief §25 failure line and rethrows unchanged when the analyzer call fails', async () => {
+    const { processor, analyzerClientService } = buildProcessor({
+      queryResult: { processedPrompts: 1, totalPrompts: 3 },
+    });
+    const analyzerError = new Error('analyzer unavailable');
+    analyzerClientService.analyze.mockRejectedValueOnce(analyzerError);
+
+    const errorSpy = jest.spyOn(Logger.prototype, 'error');
+
+    const job = { id: 'job-1', data: { scanId, promptId } } as Job<{
+      scanId: string;
+      promptId: string;
+    }>;
+
+    await expect(processor.process(job)).rejects.toBe(analyzerError);
+
+    expect(errorSpy).toHaveBeenCalledWith(`[ANALYZER] Request failed for prompt ${promptId}`);
+    errorSpy.mockRestore();
+  });
+
+  describe('onJobFailed', () => {
+    it('logs "retry scheduled" while attempts remain', () => {
+      const { processor } = buildProcessor({ queryResult: { processedPrompts: 1, totalPrompts: 3 } });
+      const errorSpy = jest.spyOn(Logger.prototype, 'error');
+
+      const job = {
+        data: { scanId, promptId },
+        attemptsMade: 1,
+        opts: { attempts: 3 },
+      } as unknown as Job<{ scanId: string; promptId: string }>;
+
+      processor.onJobFailed(job);
+
+      expect(errorSpy).toHaveBeenCalledWith(`[WORKER] Job ${promptId} failed — retry scheduled`);
+      errorSpy.mockRestore();
+    });
+
+    it('logs "no more retries" once attempts are exhausted', () => {
+      const { processor } = buildProcessor({ queryResult: { processedPrompts: 1, totalPrompts: 3 } });
+      const errorSpy = jest.spyOn(Logger.prototype, 'error');
+
+      const job = {
+        data: { scanId, promptId },
+        attemptsMade: 3,
+        opts: { attempts: 3 },
+      } as unknown as Job<{ scanId: string; promptId: string }>;
+
+      processor.onJobFailed(job);
+
+      expect(errorSpy).toHaveBeenCalledWith(`[WORKER] Job ${promptId} failed — no more retries`);
+      errorSpy.mockRestore();
     });
   });
 });

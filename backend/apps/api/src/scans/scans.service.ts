@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { InjectDataSource } from '@nestjs/typeorm';
 import { InjectQueue } from '@nestjs/bullmq';
 import { DataSource } from 'typeorm';
@@ -16,6 +16,8 @@ import { ScanDetailResponse } from './interfaces/scan-detail-response.interface'
 
 @Injectable()
 export class ScansService {
+  private readonly logger = new Logger('SCAN');
+
   constructor(
     @InjectDataSource() private readonly dataSource: DataSource,
     @InjectQueue(PROMPT_SCAN_QUEUE) private readonly promptScanQueue: Queue,
@@ -44,6 +46,8 @@ export class ScansService {
       },
     );
 
+    this.logger.log(`[SCAN] Created scan ${scan.id}`);
+
     // Enqueue only after the transaction has committed - a job must never
     // point at a scan/prompt row that doesn't actually exist yet. Each
     // prompt becomes its own independent job; the deterministic jobId
@@ -51,15 +55,17 @@ export class ScansService {
     // never a duplicate job.
     await Promise.all(
       prompts.map((prompt) =>
-        this.promptScanQueue.add(
-          PROMPT_SCAN_JOB_NAME,
-          { scanId: scan.id, promptId: prompt.id },
-          {
-            jobId: buildPromptJobId(scan.id, prompt.id),
-            attempts: 3,
-            backoff: { type: 'exponential', delay: 2000 },
-          },
-        ),
+        this.promptScanQueue
+          .add(
+            PROMPT_SCAN_JOB_NAME,
+            { scanId: scan.id, promptId: prompt.id },
+            {
+              jobId: buildPromptJobId(scan.id, prompt.id),
+              attempts: 3,
+              backoff: { type: 'exponential', delay: 2000 },
+            },
+          )
+          .then(() => this.logger.log(`[QUEUE] Added prompt ${prompt.id}`)),
       ),
     );
 

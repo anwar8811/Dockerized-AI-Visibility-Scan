@@ -24,13 +24,14 @@ export class AnalyzerClientService {
   async analyze(request: AnalyzeRequest): Promise<AnalyzeResponse> {
     const baseUrl = process.env.ANALYZER_URL;
 
-    this.logger.log('[ANALYZER] Sending AI response for analysis');
+    // Wording matches the brief's §25 logging example exactly.
+    this.logger.log('[ANALYZER] Sending response for analysis');
 
     const response = await firstValueFrom(
       this.httpService.post<AnalyzeResponse>(`${baseUrl}/analyze`, request),
     );
 
-    this.logger.log('[ANALYZER] Analysis received');
+    this.logger.log('[ANALYZER] Analysis completed');
 
     return response.data;
   }
