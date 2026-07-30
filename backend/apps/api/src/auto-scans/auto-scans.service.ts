@@ -1,4 +1,4 @@
-import { Injectable, UnprocessableEntityException } from '@nestjs/common';
+import { Injectable, Logger, UnprocessableEntityException } from '@nestjs/common';
 import { CrawledPage } from '../crawler/crawled-page.interface';
 import { WebsiteCrawlerService } from '../crawler/website-crawler.service';
 import { detectBrandName } from '../crawler/brand-detector';
@@ -8,6 +8,8 @@ import { CreateAutoScanDto } from './dto/create-auto-scan.dto';
 
 @Injectable()
 export class AutoScansService {
+  private readonly logger = new Logger('AUTO_SCAN');
+
   constructor(
     private readonly crawlerService: WebsiteCrawlerService,
     private readonly promptGeneratorService: PromptGeneratorService,
@@ -25,7 +27,8 @@ export class AutoScansService {
     if (needsCrawl) {
       try {
         pages = await this.crawlerService.crawl(dto.website);
-      } catch {
+      } catch (error) {
+        this.logger.error(`[CRAWL] Request failed for ${dto.website}: ${(error as Error).message}`);
         throw new UnprocessableEntityException(
           'Unable to extract sufficient brand information from the website.',
         );
@@ -38,7 +41,8 @@ export class AutoScansService {
     if (!prompts) {
       try {
         prompts = await this.promptGeneratorService.generatePrompts(pages!);
-      } catch {
+      } catch (error) {
+        this.logger.error(`[PROMPT_GENERATION] Failed: ${(error as Error).message}`);
         throw new UnprocessableEntityException(
           'Unable to generate prompts from the website content.',
         );
