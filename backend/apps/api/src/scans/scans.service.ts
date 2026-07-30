@@ -24,25 +24,43 @@ export class ScansService {
   ) {}
 
   async create(dto: CreateScanDto): Promise<{ scanId: string; status: string }> {
+    return this.createFromResolvedInputs(
+      dto.brandName,
+      dto.website,
+      dto.competitors,
+      dto.prompts,
+    );
+  }
+
+  // Same transaction + enqueue logic create() always had - extracted so
+  // apps/api/src/auto-scans (EPIC-12) can create a scan from its own
+  // resolved (crawled/detected/generated) inputs without duplicating this
+  // logic or touching create()'s own behavior (KAD-13).
+  async createFromResolvedInputs(
+    brandName: string,
+    website: string,
+    competitors: string[],
+    prompts: string[],
+  ): Promise<{ scanId: string; status: string }> {
     // One Scan row + one Prompt row per submitted prompt, in a single
     // transaction - a partial write (scan created but a prompt insert
     // failing) can never happen.
-    const { scan, prompts } = await this.dataSource.transaction(
+    const { scan, prompts: promptRows } = await this.dataSource.transaction(
       async (manager) => {
         const scan = manager.create(Scan, {
-          brandName: dto.brandName,
-          website: dto.website,
-          competitors: dto.competitors,
-          totalPrompts: dto.prompts.length,
+          brandName,
+          website,
+          competitors,
+          totalPrompts: prompts.length,
         });
         await manager.save(scan);
 
-        const prompts = dto.prompts.map((text) =>
+        const promptRows = prompts.map((text) =>
           manager.create(Prompt, { scanId: scan.id, text }),
         );
-        await manager.save(prompts);
+        await manager.save(promptRows);
 
-        return { scan, prompts };
+        return { scan, prompts: promptRows };
       },
     );
 
@@ -54,7 +72,7 @@ export class ScansService {
     // means accidentally enqueueing the same prompt twice is a no-op,
     // never a duplicate job.
     await Promise.all(
-      prompts.map((prompt) =>
+      promptRows.map((prompt) =>
         this.promptScanQueue
           .add(
             PROMPT_SCAN_JOB_NAME,

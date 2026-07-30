@@ -8,5 +8,6 @@ import { ScansService } from './scans.service';
   imports: [BullModule.registerQueue({ name: PROMPT_SCAN_QUEUE })],
   controllers: [ScansController],
   providers: [ScansService],
+  exports: [ScansService],
 })
 export class ScansModule {}
