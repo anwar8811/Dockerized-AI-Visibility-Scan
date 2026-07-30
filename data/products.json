@@ -70,5 +70,20 @@
     "sourceUrls": [
       "https://reviews.test/leadharbor"
     ]
+  },
+  {
+    "name": "Elegant",
+    "description": "A full-stack product studio that takes a founder's idea and ships a live, AI-native product in as little as 6 weeks - bringing strategy, UX design, engineering, and AI together in one senior team so founders do not have to manage separate designers, developers, and AI consultants.",
+    "targetCustomer": "Founders, startups, and growing teams across SaaS, fintech, healthcare, logistics, PropTech, and AI software",
+    "features": [
+      "Strategy and UX design",
+      "Full-stack engineering",
+      "AI-native product development, including agentic systems and AI-powered workflows",
+      "Fixed-scope delivery in as little as 6 weeks"
+    ],
+    "pricingDescription": "Fixed-scope engagements with clear execution and fast delivery - no separate designers, developers, or AI consultants to manage.",
+    "sourceUrls": [
+      "https://eleganttechbd.com"
+    ]
   }
 ]

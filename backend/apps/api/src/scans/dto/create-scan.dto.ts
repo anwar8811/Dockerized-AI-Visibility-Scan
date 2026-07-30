@@ -11,7 +11,7 @@ import { ApiProperty } from '@nestjs/swagger';
 export class CreateScanDto {
   @ApiProperty({
     description: 'The target brand being scanned for AI visibility.',
-    example: 'NimbusCRM',
+    example: 'Elegant',
   })
   @IsString()
   @IsNotEmpty()
@@ -19,14 +19,14 @@ export class CreateScanDto {
 
   @ApiProperty({
     description: "The brand's website - must be a valid URL.",
-    example: 'https://nimbuscrm.test',
+    example: 'https://eleganttechbd.com',
   })
   @IsUrl()
   website: string;
 
   @ApiProperty({
     description: 'Competitor brand names. Minimum 1, maximum 3.',
-    example: ['OrbitDesk', 'ClientLoop'],
+    example: ['PixelForge Studio', 'CodeCraft Labs'],
     minItems: 1,
     maxItems: 3,
   })
@@ -39,9 +39,9 @@ export class CreateScanDto {
   @ApiProperty({
     description: 'AI search prompts to test. Minimum 3, maximum 5.',
     example: [
-      'What are the best CRM tools for small agencies?',
-      'What CRM is good for managing client follow-ups?',
-      'What are good lightweight CRM tools for small teams?',
+      'What is the best product studio for building an AI-native MVP quickly?',
+      'Which full-stack team can take a startup idea to a launched product in a few weeks?',
+      'What product development studio offers strategy, UX design, engineering, and AI together?',
     ],
     minItems: 3,
     maxItems: 5,
