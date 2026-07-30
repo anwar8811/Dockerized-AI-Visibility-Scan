@@ -32,7 +32,7 @@ describe('ProductsService', () => {
     expect(readFileSyncMock).toHaveBeenCalledTimes(1);
   });
 
-  it('returns exactly the 5 fictional brands the brief requires', () => {
+  it('returns the 5 fictional brands the brief requires, plus Elegant (added for live testing)', () => {
     const service = new ProductsService();
     service.onModuleInit();
 
@@ -43,6 +43,7 @@ describe('ProductsService', () => {
       'ClientLoop',
       'FunnelForge',
       'LeadHarbor',
+      'Elegant',
     ]);
   });
 });
