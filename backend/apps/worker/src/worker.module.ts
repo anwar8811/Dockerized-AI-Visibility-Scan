@@ -7,13 +7,16 @@ import {
   bullMqConnection,
   PROMPT_SCAN_QUEUE,
   BRAND_INTELLIGENCE_QUEUE,
+  PROMPT_RANK_QUEUE,
   Scan,
   Prompt,
   PromptResult,
+  PromptResultRanking,
   BrandProfile,
 } from '@app/common';
 import { PromptScanProcessor } from './processors/prompt-scan.processor';
 import { BrandIntelligenceProcessor } from './processors/brand-intelligence.processor';
+import { PromptRankProcessor } from './processors/prompt-rank.processor';
 import { ProductsModule } from './products/products.module';
 import { OpenRouterModule } from './ai/openrouter.module';
 import { AnalyzerClientModule } from './analyzer/analyzer-client.module';
@@ -24,10 +27,11 @@ import { CompetitorLookupModule } from './competitor-lookup/competitor-lookup.mo
 @Module({
   imports: [
     TypeOrmModule.forRoot(typeOrmDataSourceOptions),
-    TypeOrmModule.forFeature([Scan, Prompt, PromptResult, BrandProfile]),
+    TypeOrmModule.forFeature([Scan, Prompt, PromptResult, PromptResultRanking, BrandProfile]),
     BullModule.forRoot({ connection: bullMqConnection }),
     BullModule.registerQueue({ name: PROMPT_SCAN_QUEUE }),
     BullModule.registerQueue({ name: BRAND_INTELLIGENCE_QUEUE }),
+    BullModule.registerQueue({ name: PROMPT_RANK_QUEUE }),
     HttpModule,
     ProductsModule,
     OpenRouterModule,
@@ -36,6 +40,6 @@ import { CompetitorLookupModule } from './competitor-lookup/competitor-lookup.mo
     WebsiteCrawlerModule,
     CompetitorLookupModule,
   ],
-  providers: [PromptScanProcessor, BrandIntelligenceProcessor],
+  providers: [PromptScanProcessor, BrandIntelligenceProcessor, PromptRankProcessor],
 })
 export class WorkerModule {}
