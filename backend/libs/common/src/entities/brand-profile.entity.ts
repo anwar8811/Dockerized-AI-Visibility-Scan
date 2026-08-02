@@ -37,8 +37,12 @@ export class BrandProfile {
   @Column({ type: 'enum', enum: BrandProfileRole, enumName: 'brand_profile_role' })
   role: BrandProfileRole;
 
-  @Column({ type: 'varchar' })
-  name: string;
+  // Nullable (EPIC-13, STORY-040) - the BRAND row's name starts NULL when
+  // the caller omits brandName on POST /scans/auto; STORY-041's processor
+  // resolves it (reusing detectBrandName()) as part of gathering. A
+  // COMPETITOR row's name is always supplied by the caller, never null.
+  @Column({ type: 'varchar', nullable: true })
+  name: string | null;
 
   @Column({ type: 'varchar', nullable: true })
   sourceUrl: string | null;
