@@ -8,6 +8,7 @@ import {
   Scan,
   Prompt,
   PromptResult,
+  BrandProfile,
 } from '@app/common';
 import { PromptScanProcessor } from './processors/prompt-scan.processor';
 import { ProductsModule } from './products/products.module';
@@ -18,7 +19,7 @@ import { VisibilityScoringModule } from './scoring/visibility-scoring.module';
 @Module({
   imports: [
     TypeOrmModule.forRoot(typeOrmDataSourceOptions),
-    TypeOrmModule.forFeature([Scan, Prompt, PromptResult]),
+    TypeOrmModule.forFeature([Scan, Prompt, PromptResult, BrandProfile]),
     BullModule.forRoot({ connection: bullMqConnection }),
     BullModule.registerQueue({ name: PROMPT_SCAN_QUEUE }),
     ProductsModule,
