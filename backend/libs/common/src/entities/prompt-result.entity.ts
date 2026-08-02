@@ -4,9 +4,11 @@ import {
   Column,
   CreateDateColumn,
   OneToOne,
+  OneToMany,
   JoinColumn,
 } from 'typeorm';
 import { Prompt } from './prompt.entity';
+import { PromptResultRanking } from './prompt-result-ranking.entity';
 
 @Entity('prompt_result')
 export class PromptResult {
@@ -46,4 +48,11 @@ export class PromptResult {
 
   @CreateDateColumn({ type: 'timestamptz' })
   createdAt: Date;
+
+  // EPIC-13 (STORY-047) - reverse side of PromptResultRanking.promptResult,
+  // one row per entity (brand + every competitor) for rows created by the
+  // new ranked-analysis flow. Empty for every classic POST /scans row,
+  // which never has PromptResultRanking rows at all.
+  @OneToMany(() => PromptResultRanking, (ranking) => ranking.promptResult)
+  rankings: PromptResultRanking[];
 }

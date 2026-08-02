@@ -8,6 +8,7 @@ import {
 } from 'typeorm';
 import { ScanPromptStatus } from '../enums/scan-prompt-status.enum';
 import { Prompt } from './prompt.entity';
+import { BrandProfile } from './brand-profile.entity';
 
 @Entity('scan')
 export class Scan {
@@ -54,4 +55,11 @@ export class Scan {
 
   @OneToMany(() => Prompt, (prompt) => prompt.scan)
   prompts: Prompt[];
+
+  // EPIC-13 (STORY-047) - reverse side of BrandProfile.scan, so
+  // GET /scans/:id can load every gathered entity for the scan. Empty for
+  // every scan created via the classic POST /scans, which never creates
+  // BrandProfile rows.
+  @OneToMany(() => BrandProfile, (brandProfile) => brandProfile.scan)
+  brandProfiles: BrandProfile[];
 }
