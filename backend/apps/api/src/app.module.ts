@@ -5,6 +5,7 @@ import { typeOrmDataSourceOptions, apiBullMqConnection } from '@app/common';
 import { HealthModule } from './health/health.module';
 import { ScansModule } from './scans/scans.module';
 import { AutoScansModule } from './auto-scans/auto-scans.module';
+import { ScanPromptsModule } from './scan-prompts/scan-prompts.module';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 
@@ -15,6 +16,7 @@ import { AppService } from './app.service';
     HealthModule,
     ScansModule,
     AutoScansModule,
+    ScanPromptsModule,
   ],
   controllers: [AppController],
   providers: [AppService],
