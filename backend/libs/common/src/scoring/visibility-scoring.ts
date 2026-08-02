@@ -32,7 +32,10 @@ export function computeCompetitorCitationMetrics(
 ): CompetitorCitationMetrics {
   const competitorMentions: Record<string, number> = {};
   for (const result of results) {
-    for (const competitor of result.competitorsMentioned) {
+    // competitorsMentioned is null for a PromptResult from the new
+    // ranked-analysis flow (EPIC-13, KAD-27) - it contributes nothing to
+    // this classic aggregate, same as an empty array would.
+    for (const competitor of result.competitorsMentioned ?? []) {
       competitorMentions[competitor] = (competitorMentions[competitor] ?? 0) + 1;
     }
   }

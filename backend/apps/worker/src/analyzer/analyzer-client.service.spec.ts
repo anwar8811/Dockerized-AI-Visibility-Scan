@@ -40,4 +40,38 @@ describe('AnalyzerClientService', () => {
       response: 'NimbusCRM is great. See https://reviews.test/compare.',
     });
   });
+
+  it('posts the response/entities to ANALYZER_URL/analyze/rank and returns the rankings', async () => {
+    const rankResponse = {
+      rankings: [
+        { entityId: 'brand-1', mentionCount: 2, rank: 1 },
+        { entityId: 'comp-1', mentionCount: 1, rank: 2 },
+      ],
+      citationDomains: ['reviews.test'],
+    };
+    const post = jest.fn().mockReturnValue(of({ data: rankResponse }));
+    const httpService = { post } as any;
+
+    const service = new AnalyzerClientService(httpService);
+    const result = await service.analyzeRank({
+      response: 'NimbusCRM is great. See https://reviews.test/compare.',
+      entities: [
+        { id: 'brand-1', name: 'NimbusCRM' },
+        { id: 'comp-1', name: 'OrbitDesk' },
+      ],
+    });
+
+    expect(result).toEqual(rankResponse);
+    expect(post).toHaveBeenCalledTimes(1);
+
+    const [url, body] = post.mock.calls[0];
+    expect(url).toBe('http://analyzer.test:8080/analyze/rank');
+    expect(body).toEqual({
+      response: 'NimbusCRM is great. See https://reviews.test/compare.',
+      entities: [
+        { id: 'brand-1', name: 'NimbusCRM' },
+        { id: 'comp-1', name: 'OrbitDesk' },
+      ],
+    });
+  });
 });

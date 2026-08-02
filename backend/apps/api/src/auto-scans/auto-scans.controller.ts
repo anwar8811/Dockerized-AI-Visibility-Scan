@@ -4,7 +4,10 @@ import { AutoScansService } from './auto-scans.service';
 import { CreateAutoScanDto } from './dto/create-auto-scan.dto';
 
 // A deliberately separate controller/route from ScansController - POST
-// /scans itself is never touched by this endpoint (KAD-13).
+// /scans itself is never touched by this endpoint (KAD-13). EPIC-13
+// (KAD-21): this is now stage 1 of a 3-stage flow - it only kicks off
+// intelligence gathering; POST /scans/:id/prompts and
+// POST /scans/:id/analyze (STORY-043/STORY-045) are the follow-up stages.
 @ApiTags('scans')
 @Controller('scans/auto')
 export class AutoScansController {
@@ -12,14 +15,14 @@ export class AutoScansController {
 
   @Post()
   @ApiOperation({
-    summary: 'Create a scan with auto-detected brand name and/or auto-generated prompts',
+    summary: 'Start gathering brand + competitor intelligence for a new scan',
     description:
-      'brandName and prompts are both optional - whichever is omitted is resolved by crawling the website (at most once), then the scan is created exactly like POST /scans would with the resolved values.',
+      'Creates a Scan and one BrandProfile row per entity (the brand, plus each competitor), then enqueues one background job per entity to gather its intelligence in parallel. Returns immediately - no crawl or AI call happens in this request. Poll GET /scans/:id until status is "INTELLIGENCE_READY", then call POST /scans/:id/prompts.',
   })
   @ApiResponse({
     status: 201,
-    description: 'Scan created and queued.',
-    schema: { example: { scanId: 'uuid', status: 'QUEUED' } },
+    description: 'Scan created; intelligence gathering started in the background.',
+    schema: { example: { scanId: 'uuid', status: 'GATHERING_INTELLIGENCE' } },
   })
   @ApiResponse({
     status: 400,
@@ -29,18 +32,6 @@ export class AutoScansController {
         statusCode: 400,
         message: ['website must be a URL address'],
         error: 'Bad Request',
-      },
-    },
-  })
-  @ApiResponse({
-    status: 422,
-    description:
-      'The website could not be crawled, or (when prompts was omitted) AI prompt generation failed.',
-    schema: {
-      example: {
-        statusCode: 422,
-        message: 'Unable to extract sufficient brand information from the website.',
-        error: 'Unprocessable Entity',
       },
     },
   })

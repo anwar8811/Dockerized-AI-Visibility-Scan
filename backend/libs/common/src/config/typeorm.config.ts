@@ -4,6 +4,8 @@ import * as path from 'path';
 import { Scan } from '../entities/scan.entity';
 import { Prompt } from '../entities/prompt.entity';
 import { PromptResult } from '../entities/prompt-result.entity';
+import { BrandProfile } from '../entities/brand-profile.entity';
+import { PromptResultRanking } from '../entities/prompt-result-ranking.entity';
 
 // The real .env file lives at backend/.env (a symlink at the project
 // root, `.env -> backend/.env`, lets `docker compose up` find the same
@@ -31,7 +33,7 @@ export const typeOrmDataSourceOptions: DataSourceOptions = {
   username: process.env.POSTGRES_USER,
   password: process.env.POSTGRES_PASSWORD,
   database: process.env.POSTGRES_DB,
-  entities: [Scan, Prompt, PromptResult],
+  entities: [Scan, Prompt, PromptResult, BrandProfile, PromptResultRanking],
   synchronize: false,
 };
 

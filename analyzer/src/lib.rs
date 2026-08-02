@@ -13,4 +13,5 @@ pub fn build_router() -> Router {
     Router::new()
         .route("/health", get(routes::health::health_handler))
         .route("/analyze", post(routes::analyze::analyze_handler))
+        .route("/analyze/rank", post(routes::rank::rank_handler))
 }

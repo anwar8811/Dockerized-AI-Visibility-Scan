@@ -1,66 +1,97 @@
-import { Injectable, Logger, UnprocessableEntityException } from '@nestjs/common';
-import { CrawledPage } from '../crawler/crawled-page.interface';
-import { WebsiteCrawlerService } from '../crawler/website-crawler.service';
-import { detectBrandName } from '../crawler/brand-detector';
-import { PromptGeneratorService } from '../prompt-generation/prompt-generator.service';
-import { ScansService } from '../scans/scans.service';
+import { Injectable, Logger } from '@nestjs/common';
+import { InjectDataSource } from '@nestjs/typeorm';
+import { InjectQueue } from '@nestjs/bullmq';
+import { DataSource } from 'typeorm';
+import { Queue } from 'bullmq';
+import {
+  Scan,
+  BrandProfile,
+  BrandProfileRole,
+  ScanPromptStatus,
+  BRAND_INTELLIGENCE_QUEUE,
+  BRAND_INTELLIGENCE_JOB_NAME,
+  buildBrandIntelligenceJobId,
+} from '@app/common';
 import { CreateAutoScanDto } from './dto/create-auto-scan.dto';
 
+// EPIC-13 (KAD-21): POST /scans/auto no longer crawls/detects/generates
+// inline - it only creates the Scan + one BrandProfile row per entity
+// (brand + each competitor), enqueues one independent BullMQ job per
+// entity (KAD-23), and returns immediately. The actual gathering happens
+// in apps/worker's BrandIntelligenceProcessor (STORY-041).
 @Injectable()
 export class AutoScansService {
   private readonly logger = new Logger('AUTO_SCAN');
 
   constructor(
-    private readonly crawlerService: WebsiteCrawlerService,
-    private readonly promptGeneratorService: PromptGeneratorService,
-    private readonly scansService: ScansService,
+    @InjectDataSource() private readonly dataSource: DataSource,
+    @InjectQueue(BRAND_INTELLIGENCE_QUEUE) private readonly brandIntelligenceQueue: Queue,
   ) {}
 
-  // FR13's 4-case branching: the website is crawled at most once, only
-  // when something is actually missing, and the same crawl result feeds
-  // both brand detection and prompt generation when both are missing
-  // (never two separate crawls).
   async create(dto: CreateAutoScanDto): Promise<{ scanId: string; status: string }> {
-    const needsCrawl = !dto.brandName || !dto.prompts;
+    // One Scan row + one BrandProfile row per entity, in a single
+    // transaction - same "no partial write" guarantee as
+    // ScansService.createFromResolvedInputs().
+    const { scan, brandProfiles } = await this.dataSource.transaction(async (manager) => {
+      const scan = manager.create(Scan, {
+        // Left empty until STORY-041 resolves the brand's real name (from
+        // the BRAND-role BrandProfile below) - Scan.brandName itself
+        // stays NOT NULL, so this is a placeholder, never displayed as a
+        // real brand name while status is GATHERING_INTELLIGENCE.
+        brandName: dto.brandName ?? '',
+        website: dto.website,
+        competitors: dto.competitors,
+        totalPrompts: 0,
+        status: ScanPromptStatus.GATHERING_INTELLIGENCE,
+      });
+      await manager.save(scan);
 
-    let pages: CrawledPage[] | undefined;
-    if (needsCrawl) {
-      try {
-        pages = await this.crawlerService.crawl(dto.website);
-      } catch (error) {
-        this.logger.error(`[CRAWL] Request failed for ${dto.website}: ${(error as Error).message}`);
-        throw new UnprocessableEntityException(
-          'Unable to extract sufficient brand information from the website.',
-        );
-      }
-    }
+      const brandRow = manager.create(BrandProfile, {
+        scanId: scan.id,
+        role: BrandProfileRole.BRAND,
+        name: dto.brandName ?? null,
+        sourceUrl: dto.website,
+      });
+      const competitorRows = dto.competitors.map((name) =>
+        manager.create(BrandProfile, {
+          scanId: scan.id,
+          role: BrandProfileRole.COMPETITOR,
+          name,
+          sourceUrl: null,
+        }),
+      );
 
-    const brandName = dto.brandName ?? this.detectBrandNameFrom(pages!);
+      const brandProfiles = [brandRow, ...competitorRows];
+      await manager.save(brandProfiles);
 
-    let prompts = dto.prompts;
-    if (!prompts) {
-      try {
-        prompts = await this.promptGeneratorService.generatePrompts(pages!);
-      } catch (error) {
-        this.logger.error(`[PROMPT_GENERATION] Failed: ${(error as Error).message}`);
-        throw new UnprocessableEntityException(
-          'Unable to generate prompts from the website content.',
-        );
-      }
-    }
+      return { scan, brandProfiles };
+    });
 
-    // Both UnprocessableEntityException throws above happen before this
-    // line - no partial Scan/Prompt write is ever possible (KAD-18).
-    return this.scansService.createFromResolvedInputs(
-      brandName,
-      dto.website,
-      dto.competitors,
-      prompts,
+    this.logger.log(
+      `[AUTO_SCAN] Created scan ${scan.id}, gathering intelligence for ${brandProfiles.length} entities`,
     );
-  }
 
-  private detectBrandNameFrom(pages: CrawledPage[]): string {
-    const homepage = pages.find((page) => page.pageType === 'homepage')!;
-    return detectBrandName(homepage);
+    // Enqueue only after the transaction has committed - a job must never
+    // point at a scan/brand_profile row that doesn't actually exist yet.
+    // Each entity becomes its own independent job (KAD-23); the
+    // deterministic jobId means accidentally enqueueing the same entity
+    // twice is a no-op, never a duplicate job.
+    await Promise.all(
+      brandProfiles.map((profile) =>
+        this.brandIntelligenceQueue
+          .add(
+            BRAND_INTELLIGENCE_JOB_NAME,
+            { scanId: scan.id, brandProfileId: profile.id },
+            {
+              jobId: buildBrandIntelligenceJobId(scan.id, profile.id),
+              attempts: 3,
+              backoff: { type: 'exponential', delay: 2000 },
+            },
+          )
+          .then(() => this.logger.log(`[QUEUE] Added brand-intelligence job for ${profile.id}`)),
+      ),
+    );
+
+    return { scanId: scan.id, status: scan.status };
   }
 }

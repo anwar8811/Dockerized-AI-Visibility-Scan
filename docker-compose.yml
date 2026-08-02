@@ -108,6 +108,12 @@ services:
       REDIS_PORT: 6379
       OPENROUTER_API_KEY: ${OPENROUTER_API_KEY}
       OPENROUTER_MODEL: ${OPENROUTER_MODEL}
+      # EPIC-13 (KAD-24, STORY-046) - the distinct model PromptRankProcessor
+      # pins for the prompt-answering step. Missing here (as it was until
+      # this fix) meant callOpenRouterChatCompletion() silently fell back
+      # to OPENROUTER_MODEL inside the container - the same model used for
+      # prompt generation, silently defeating KAD-24's whole point.
+      OPENROUTER_ANSWER_MODEL: ${OPENROUTER_ANSWER_MODEL}
       OPENROUTER_BASE_URL: ${OPENROUTER_BASE_URL}
       ANALYZER_URL: http://analyzer:8080
     depends_on:

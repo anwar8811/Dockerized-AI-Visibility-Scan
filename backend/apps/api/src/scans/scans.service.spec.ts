@@ -99,7 +99,10 @@ describe('ScansService', () => {
       expect(result).toBeNull();
       expect(findOne).toHaveBeenCalledWith({
         where: { id: 'missing-id' },
-        relations: { prompts: { result: true } },
+        relations: {
+          prompts: { result: { rankings: { brandProfile: true } } },
+          brandProfiles: true,
+        },
       });
     });
 
@@ -128,6 +131,7 @@ describe('ScansService', () => {
               brandMentionCount: 1,
               competitorsMentioned: ['OrbitDesk'],
               citationDomains: ['reviews.test'],
+              rankings: [],
             },
           },
           {
@@ -137,6 +141,7 @@ describe('ScansService', () => {
             result: null,
           },
         ],
+        brandProfiles: [],
       };
       getRepository.mockReturnValue({ findOne: jest.fn().mockResolvedValue(scan) });
 
@@ -164,12 +169,80 @@ describe('ScansService', () => {
             brandMentionCount: 1,
             competitorsMentioned: ['OrbitDesk'],
             citationDomains: ['reviews.test'],
+            rankings: [],
           },
         ],
+        brandProfiles: [],
         createdAt: scan.createdAt,
         updatedAt: scan.updatedAt,
         completedAt: scan.completedAt,
       });
+    });
+
+    // EPIC-13 (STORY-047) - the new ranked-analysis flow's shape: brandMentioned
+    // etc. are null (never fed into the classic aggregates), brandProfiles
+    // is populated, and each result's rankings array is sorted by rank
+    // regardless of the order BrandProfile rows come back in.
+    it('populates brandProfiles and per-result rankings for a ranked-analysis scan, excluding null-brandMentioned rows from the classic aggregates', async () => {
+      const { service, getRepository } = buildService();
+      const scan = {
+        id: 'scan-2',
+        brandName: 'NimbusCRM',
+        website: 'https://nimbuscrm.test',
+        competitors: ['OrbitDesk', 'ClientLoop'],
+        status: ScanPromptStatus.COMPLETED,
+        totalPrompts: 1,
+        processedPrompts: 1,
+        visibilityScore: null,
+        createdAt: new Date('2026-01-01T00:00:00.000Z'),
+        updatedAt: new Date('2026-01-01T00:00:05.000Z'),
+        completedAt: new Date('2026-01-01T00:00:05.000Z'),
+        prompts: [
+          {
+            id: 'prompt-1',
+            text: 'a',
+            status: ScanPromptStatus.COMPLETED,
+            result: {
+              aiResponse: 'r1',
+              brandMentioned: null,
+              brandMentionCount: null,
+              competitorsMentioned: null,
+              citationDomains: ['reviews.test'],
+              rankings: [
+                { brandProfileId: 'comp-1', brandProfile: { name: 'OrbitDesk' }, mentionCount: 1, rank: 2 },
+                { brandProfileId: 'brand-1', brandProfile: { name: 'NimbusCRM' }, mentionCount: 2, rank: 1 },
+              ],
+            },
+          },
+        ],
+        brandProfiles: [
+          { id: 'brand-1', role: 'BRAND', name: 'NimbusCRM', sourceUrl: 'https://nimbuscrm.test', servicesOffered: 'CRM', metaDescription: 'A CRM', summary: 'Summary', pros: ['Fast'], cons: [], status: 'COMPLETED' },
+          { id: 'comp-1', role: 'COMPETITOR', name: 'OrbitDesk', sourceUrl: null, servicesOffered: null, metaDescription: null, summary: null, pros: [], cons: [], status: 'FAILED' },
+        ],
+      };
+      getRepository.mockReturnValue({ findOne: jest.fn().mockResolvedValue(scan) });
+
+      const result = await service.getScanWithAggregates('scan-2');
+
+      // None of the classic aggregates are ever fed by a null-brandMentioned
+      // row (STORY-047's AC) - all three stay empty/null exactly as they
+      // would for a scan with no completed classic-flow prompts at all,
+      // even though this PromptResult's own citationDomains column is
+      // populated (that column is NOT NULL for both flows, KAD-26 - it's
+      // just never rolled into this classic, read-time aggregate).
+      expect(result!.competitorMentions).toEqual({});
+      expect(result!.topCompetitor).toBeNull();
+      expect(result!.citationDomains).toEqual([]);
+
+      expect(result!.brandProfiles).toEqual(scan.brandProfiles);
+
+      expect(result!.results).toHaveLength(1);
+      expect(result!.results[0].brandMentioned).toBeNull();
+      // Sorted by rank ascending, regardless of the input order above.
+      expect(result!.results[0].rankings).toEqual([
+        { entityName: 'NimbusCRM', mentionCount: 2, rank: 1 },
+        { entityName: 'OrbitDesk', mentionCount: 1, rank: 2 },
+      ]);
     });
   });
 });

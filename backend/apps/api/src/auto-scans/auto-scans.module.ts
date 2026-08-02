@@ -1,12 +1,11 @@
 import { Module } from '@nestjs/common';
-import { WebsiteCrawlerModule } from '../crawler/website-crawler.module';
-import { PromptGenerationModule } from '../prompt-generation/prompt-generation.module';
-import { ScansModule } from '../scans/scans.module';
+import { BullModule } from '@nestjs/bullmq';
+import { BRAND_INTELLIGENCE_QUEUE } from '@app/common';
 import { AutoScansController } from './auto-scans.controller';
 import { AutoScansService } from './auto-scans.service';
 
 @Module({
-  imports: [WebsiteCrawlerModule, PromptGenerationModule, ScansModule],
+  imports: [BullModule.registerQueue({ name: BRAND_INTELLIGENCE_QUEUE })],
   controllers: [AutoScansController],
   providers: [AutoScansService],
 })

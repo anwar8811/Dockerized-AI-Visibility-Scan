@@ -4,9 +4,11 @@ import {
   Column,
   CreateDateColumn,
   OneToOne,
+  OneToMany,
   JoinColumn,
 } from 'typeorm';
 import { Prompt } from './prompt.entity';
+import { PromptResultRanking } from './prompt-result-ranking.entity';
 
 @Entity('prompt_result')
 export class PromptResult {
@@ -28,18 +30,29 @@ export class PromptResult {
   @Column({ type: 'text' })
   aiResponse: string;
 
-  @Column({ type: 'boolean' })
-  brandMentioned: boolean;
+  // Nullable since EPIC-13 (KAD-27) - NULL for PromptResult rows created by
+  // the new ranked-analysis flow (POST /scans/:id/analyze), which uses the
+  // related PromptResultRanking rows instead. The classic POST /scans
+  // pipeline still always assigns real values here, never null.
+  @Column({ type: 'boolean', nullable: true })
+  brandMentioned: boolean | null;
 
-  @Column({ type: 'int' })
-  brandMentionCount: number;
+  @Column({ type: 'int', nullable: true })
+  brandMentionCount: number | null;
 
-  @Column({ type: 'text', array: true, default: '{}' })
-  competitorsMentioned: string[];
+  @Column({ type: 'text', array: true, nullable: true })
+  competitorsMentioned: string[] | null;
 
   @Column({ type: 'text', array: true, default: '{}' })
   citationDomains: string[];
 
   @CreateDateColumn({ type: 'timestamptz' })
   createdAt: Date;
+
+  // EPIC-13 (STORY-047) - reverse side of PromptResultRanking.promptResult,
+  // one row per entity (brand + every competitor) for rows created by the
+  // new ranked-analysis flow. Empty for every classic POST /scans row,
+  // which never has PromptResultRanking rows at all.
+  @OneToMany(() => PromptResultRanking, (ranking) => ranking.promptResult)
+  rankings: PromptResultRanking[];
 }

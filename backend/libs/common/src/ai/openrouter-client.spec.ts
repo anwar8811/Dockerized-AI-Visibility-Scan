@@ -40,6 +40,22 @@ describe('callOpenRouterChatCompletion', () => {
     expect(options.headers.Authorization).toBe('Bearer secret-test-key');
   });
 
+  it('uses the given model override instead of OPENROUTER_MODEL when one is supplied', async () => {
+    const post = jest.fn().mockReturnValue(
+      of({ data: { choices: [{ message: { content: 'ok' } }] } }),
+    );
+    const httpService = { post } as any;
+
+    await callOpenRouterChatCompletion(httpService, {
+      systemInstruction: 'irrelevant',
+      userMessage: 'irrelevant',
+      model: 'some/other-model:free',
+    });
+
+    const [, body] = post.mock.calls[0];
+    expect(body.model).toBe('some/other-model:free');
+  });
+
   it('propagates the error unchanged when the HTTP call fails', async () => {
     const post = jest.fn().mockReturnValue(throwError(() => new Error('network down')));
     const httpService = { post } as any;

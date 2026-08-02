@@ -1,62 +1,58 @@
 import { Injectable } from '@nestjs/common';
 import { HttpService } from '@nestjs/axios';
-import * as cheerio from 'cheerio';
 import { callOpenRouterChatCompletion } from '@app/common';
-import { CrawledPage } from '../crawler/crawled-page.interface';
 
-const MAX_PRODUCT_INFO_LENGTH = 6000;
-const EXPECTED_PROMPT_COUNT = 2;
+const EXPECTED_PROMPT_COUNT = 3;
 
-// Distinct from apps/worker's SYSTEM_INSTRUCTION (openrouter.service.ts) -
-// that one answers a buyer's question from product context; this one asks
-// the AI to invent the buyer's questions themselves, from a business's own
-// website content (KAD-14 - only 2 of the 5 categories are picked, not all).
-const SYSTEM_INSTRUCTION = `You are a market-research assistant that writes realistic buyer-intent search prompts.
+export interface BrandIntelligenceInput {
+  name: string;
+  servicesOffered: string;
+  metaDescription: string;
+  summary: string;
+}
 
-Given a business's website content, generate EXACTLY 2 buyer-intent prompts - the kind of question a prospective customer might ask an AI assistant while researching whether to buy from this business.
+// EPIC-13 (STORY-043) rewrite: exactly 3 brand-NEUTRAL prompts (never
+// naming the brand, KAD-24), read from the brand's already-gathered
+// BrandProfile fields (STORY-041) - no longer takes CrawledPage[]/cheerio
+// at all, since the summarization already happened upstream.
+const SYSTEM_INSTRUCTION = `You are a market-research assistant that writes realistic, brand-neutral buyer-intent search prompts.
 
-Each of the 2 prompts must come from a DIFFERENT one of these 5 categories (choose whichever 2 categories fit this business best):
+Given a business's services/summary, generate EXACTLY 3 buyer-intent prompts - the kind of question a prospective customer might ask an AI assistant while researching options in this business's category.
+
+Each of the 3 prompts must come from a DIFFERENT one of these 5 categories (choose whichever 3 categories fit this business best):
 1. Category discovery - asking what options exist in this product/service category
 2. Product recommendation - asking for a recommendation for a specific need
-3. Product comparison - asking how this business compares to alternatives
+3. Product comparison - asking how businesses in this category compare to each other
 4. Problem/solution - describing a problem and asking what solves it
-5. Use-case - asking whether this business fits a specific use case
+5. Use-case - asking whether this kind of business fits a specific use case
 
-Respond with ONLY a JSON array of exactly 2 strings - no surrounding prose, no markdown code fences, no explanation. Example: ["prompt one text", "prompt two text"]`;
+CRITICAL: never mention this business's own name in any prompt - describe only the service/need/category, so the exact same 3 prompts can later be used to evaluate any of its competitors too.
+
+Respond with ONLY a JSON array of exactly 3 strings - no surrounding prose, no markdown code fences, no explanation. Example: ["prompt one text", "prompt two text", "prompt three text"]`;
 
 @Injectable()
 export class PromptGeneratorService {
   constructor(private readonly httpService: HttpService) {}
 
-  async generatePrompts(pages: CrawledPage[]): Promise<string[]> {
-    const productInfo = this.buildProductInfoText(pages);
+  async generatePrompts(brand: BrandIntelligenceInput): Promise<string[]> {
+    const userMessage = [
+      `SERVICES OFFERED:\n\n${brand.servicesOffered}`,
+      `SUMMARY:\n\n${brand.summary}`,
+      `META DESCRIPTION:\n\n${brand.metaDescription}`,
+    ].join('\n\n');
 
     const responseText = await callOpenRouterChatCompletion(this.httpService, {
       systemInstruction: SYSTEM_INSTRUCTION,
-      userMessage: `BUSINESS WEBSITE CONTENT:\n\n${productInfo}`,
+      userMessage,
     });
 
-    return this.parsePrompts(responseText);
-  }
-
-  private buildProductInfoText(pages: CrawledPage[]): string {
-    const combinedText = pages
-      .map((page) => {
-        const $ = cheerio.load(page.html);
-        $('script, style').remove();
-        return $('body').text();
-      })
-      .join('\n\n')
-      .replace(/\s+/g, ' ')
-      .trim();
-
-    return combinedText.slice(0, MAX_PRODUCT_INFO_LENGTH);
+    return this.parsePrompts(responseText, brand.name);
   }
 
   // A parse/shape failure here is a generation failure, not a bug - it
-  // throws so STORY-035's caller can turn it into a 422 response, rather
+  // throws so STORY-043's caller can turn it into a 422 response, rather
   // than ever returning an empty/partial/padded prompt list.
-  private parsePrompts(responseText: string): string[] {
+  private parsePrompts(responseText: string, brandName: string): string[] {
     let parsed: unknown;
     try {
       parsed = JSON.parse(responseText);
@@ -75,6 +71,18 @@ export class PromptGeneratorService {
       );
     }
 
-    return parsed as string[];
+    const prompts = parsed as string[];
+
+    // Defense-in-depth (enforced in code, not left to prompt-instruction-only
+    // compliance): the whole point of a brand-neutral prompt is that the
+    // exact same 3 prompts get reused to evaluate every competitor too - a
+    // prompt that names the brand defeats that, even if the system
+    // instruction explicitly forbade it.
+    const lowerBrandName = brandName.trim().toLowerCase();
+    if (lowerBrandName && prompts.some((prompt) => prompt.toLowerCase().includes(lowerBrandName))) {
+      throw new Error('AI prompt generation mentioned the brand name directly');
+    }
+
+    return prompts;
   }
 }

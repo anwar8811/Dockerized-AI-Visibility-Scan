@@ -1,7 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import axios from 'axios';
 import * as cheerio from 'cheerio';
-import { CrawledPage, CrawledPageType } from './crawled-page.interface';
+import { CrawledPage, CrawledPageType } from '@app/common';
 
 const REQUEST_TIMEOUT_MS = 5000;
 const MAX_PAGES = 4;
@@ -21,6 +21,12 @@ const SECONDARY_PAGE_PATTERNS: Array<[Exclude<CrawledPageType, 'homepage'>, RegE
 // (KAD-15) - homepage + up to one each of pricing/about/product-or-features,
 // same-domain, non-recursive (link discovery only ever looks at the
 // homepage's own <a href> tags), plain HTTP + cheerio, no headless browser.
+//
+// Relocated from apps/api/src/crawler/ to apps/worker/src/crawler/ during
+// STORY-041 - only apps/worker's BrandIntelligenceProcessor calls this now
+// (apps/api and apps/worker never import from each other's src/, only
+// libs/common is shared - this class had to actually live wherever its
+// caller lives).
 @Injectable()
 export class WebsiteCrawlerService {
   private readonly logger = new Logger('CRAWLER');

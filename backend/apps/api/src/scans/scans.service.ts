@@ -98,7 +98,10 @@ export class ScansService {
   async getScanWithAggregates(id: string): Promise<ScanDetailResponse | null> {
     const scan = await this.dataSource.getRepository(Scan).findOne({
       where: { id },
-      relations: { prompts: { result: true } },
+      relations: {
+        prompts: { result: { rankings: { brandProfile: true } } },
+        brandProfiles: true,
+      },
     });
     if (!scan) {
       return null;
@@ -108,11 +111,17 @@ export class ScansService {
     // that already have a PromptResult are included, not every prompt.
     const completedPrompts = scan.prompts.filter((prompt) => prompt.result);
 
-    // Same formula the worker uses to decide scan completion (STORY-018) -
-    // computeCompetitorCitationMetrics lives once, in @app/common, and is
-    // never re-derived here.
+    // Only classic POST /scans rows (brandMentioned non-null) ever feed
+    // these aggregates (EPIC-13, schemas/prompt-result.md's Notes) - a
+    // ranked-analysis row's own metric lives in PromptResultRanking
+    // instead, and must never be mixed into competitorMentions/
+    // topCompetitor/citationDomains. computeCompetitorCitationMetrics
+    // lives once, in @app/common, and is never re-derived here.
+    const classicResults = completedPrompts
+      .map((prompt) => prompt.result!)
+      .filter((result) => result.brandMentioned !== null);
     const { competitorMentions, topCompetitor, citationDomains } =
-      computeCompetitorCitationMetrics(completedPrompts.map((prompt) => prompt.result!));
+      computeCompetitorCitationMetrics(classicResults);
 
     const results = completedPrompts.map((prompt) => ({
       promptId: prompt.id,
@@ -123,6 +132,26 @@ export class ScansService {
       brandMentionCount: prompt.result!.brandMentionCount,
       competitorsMentioned: prompt.result!.competitorsMentioned,
       citationDomains: prompt.result!.citationDomains,
+      rankings: [...prompt.result!.rankings]
+        .sort((a, b) => a.rank - b.rank)
+        .map((ranking) => ({
+          entityName: ranking.brandProfile.name!,
+          mentionCount: ranking.mentionCount,
+          rank: ranking.rank,
+        })),
+    }));
+
+    const brandProfiles = scan.brandProfiles.map((brandProfile) => ({
+      id: brandProfile.id,
+      role: brandProfile.role,
+      name: brandProfile.name,
+      sourceUrl: brandProfile.sourceUrl,
+      servicesOffered: brandProfile.servicesOffered,
+      metaDescription: brandProfile.metaDescription,
+      summary: brandProfile.summary,
+      pros: brandProfile.pros,
+      cons: brandProfile.cons,
+      status: brandProfile.status,
     }));
 
     return {
@@ -138,6 +167,7 @@ export class ScansService {
       topCompetitor,
       citationDomains,
       results,
+      brandProfiles,
       createdAt: scan.createdAt,
       updatedAt: scan.updatedAt,
       completedAt: scan.completedAt,
