@@ -4,6 +4,12 @@ import { firstValueFrom } from 'rxjs';
 export interface OpenRouterChatCompletionParams {
   systemInstruction: string;
   userMessage: string;
+  // Optional per-call model override (EPIC-13, KAD-24/KAD-25) - defaults to
+  // process.env.OPENROUTER_MODEL when omitted, so every existing caller's
+  // behavior is completely unchanged. Lets distinct steps (prompt
+  // generation vs. prompt-answering, STORY-043/STORY-046) each pin their
+  // own free-tier model without a second, near-duplicate HTTP client.
+  model?: string;
 }
 
 interface OpenRouterChatCompletionResponse {
@@ -24,10 +30,10 @@ interface OpenRouterChatCompletionResponse {
 // httpService object and assert directly on its post() call.
 export async function callOpenRouterChatCompletion(
   httpService: HttpService,
-  { systemInstruction, userMessage }: OpenRouterChatCompletionParams,
+  { systemInstruction, userMessage, model }: OpenRouterChatCompletionParams,
 ): Promise<string> {
   const baseUrl = process.env.OPENROUTER_BASE_URL;
-  const model = process.env.OPENROUTER_MODEL;
+  const resolvedModel = model ?? process.env.OPENROUTER_MODEL;
   const apiKey = process.env.OPENROUTER_API_KEY;
 
   // Never log `apiKey` itself anywhere - it is used only in this one
@@ -36,7 +42,7 @@ export async function callOpenRouterChatCompletion(
     httpService.post<OpenRouterChatCompletionResponse>(
       `${baseUrl}/chat/completions`,
       {
-        model,
+        model: resolvedModel,
         messages: [
           { role: 'system', content: systemInstruction },
           { role: 'user', content: userMessage },
