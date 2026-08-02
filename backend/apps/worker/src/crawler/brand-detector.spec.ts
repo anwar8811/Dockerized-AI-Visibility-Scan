@@ -1,5 +1,5 @@
+import { CrawledPage } from '@app/common';
 import { detectBrandName } from './brand-detector';
-import { CrawledPage } from './crawled-page.interface';
 
 function homepage(html: string, url = 'https://example.test'): CrawledPage {
   return { url, pageType: 'homepage', html };

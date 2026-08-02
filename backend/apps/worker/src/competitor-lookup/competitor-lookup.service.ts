@@ -25,6 +25,10 @@ Example response: https://example.com`;
 // the story allows for). Never throws for an unresolvable competitor -
 // resolution failure is a normal, expected `null` return, so STORY-041's
 // caller can flag that one BrandProfile FAILED without its own try/catch.
+//
+// Relocated from apps/api/src/competitor-lookup/ to
+// apps/worker/src/competitor-lookup/ during STORY-041 - only
+// apps/worker's BrandIntelligenceProcessor calls this now.
 @Injectable()
 export class CompetitorLookupService {
   constructor(

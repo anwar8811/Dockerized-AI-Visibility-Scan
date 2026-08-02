@@ -1,8 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { HttpService } from '@nestjs/axios';
 import * as cheerio from 'cheerio';
-import { callOpenRouterChatCompletion } from '@app/common';
-import { CrawledPage } from '../crawler/crawled-page.interface';
+import { callOpenRouterChatCompletion, CrawledPage } from '@app/common';
 
 const MAX_PRODUCT_INFO_LENGTH = 6000;
 const EXPECTED_PROMPT_COUNT = 2;

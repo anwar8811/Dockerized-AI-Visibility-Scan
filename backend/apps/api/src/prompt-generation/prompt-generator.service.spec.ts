@@ -1,6 +1,5 @@
-import { callOpenRouterChatCompletion } from '@app/common';
+import { callOpenRouterChatCompletion, CrawledPage } from '@app/common';
 import { PromptGeneratorService } from './prompt-generator.service';
-import { CrawledPage } from '../crawler/crawled-page.interface';
 
 jest.mock('@app/common', () => ({
   callOpenRouterChatCompletion: jest.fn(),

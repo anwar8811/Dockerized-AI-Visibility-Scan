@@ -1,5 +1,5 @@
 import * as cheerio from 'cheerio';
-import { CrawledPage } from './crawled-page.interface';
+import { CrawledPage } from '@app/common';
 
 // Pure function (no NestJS DI, same style as libs/common/src/scoring/
 // visibility-scoring.ts) - given the crawled homepage, tries each detection
@@ -7,6 +7,9 @@ import { CrawledPage } from './crawled-page.interface';
 // og:site_name -> JSON-LD Organization.name -> <title> -> <h1> -> domain
 // name (guaranteed final fallback - this function never throws/returns
 // nothing for lack of a "good" signal).
+//
+// Relocated from apps/api/src/crawler/ to apps/worker/src/crawler/ during
+// STORY-041 - only apps/worker's BrandIntelligenceProcessor calls this now.
 export function detectBrandName(homepage: CrawledPage): string {
   const $ = cheerio.load(homepage.html);
 
