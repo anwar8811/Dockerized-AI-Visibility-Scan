@@ -8,9 +8,12 @@ export interface PromptResultSummary {
   text: string;
   status: ScanPromptStatus;
   aiResponse: string;
-  brandMentioned: boolean;
-  brandMentionCount: number;
-  competitorsMentioned: string[];
+  // Nullable since EPIC-13 (KAD-27) - null for a PromptResult created by
+  // the new ranked-analysis flow, which never populates these three
+  // fields. Always non-null for the classic POST /scans pipeline.
+  brandMentioned: boolean | null;
+  brandMentionCount: number | null;
+  competitorsMentioned: string[] | null;
   citationDomains: string[];
 }
 
