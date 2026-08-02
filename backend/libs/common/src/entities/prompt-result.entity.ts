@@ -28,14 +28,18 @@ export class PromptResult {
   @Column({ type: 'text' })
   aiResponse: string;
 
-  @Column({ type: 'boolean' })
-  brandMentioned: boolean;
+  // Nullable since EPIC-13 (KAD-27) - NULL for PromptResult rows created by
+  // the new ranked-analysis flow (POST /scans/:id/analyze), which uses the
+  // related PromptResultRanking rows instead. The classic POST /scans
+  // pipeline still always assigns real values here, never null.
+  @Column({ type: 'boolean', nullable: true })
+  brandMentioned: boolean | null;
 
-  @Column({ type: 'int' })
-  brandMentionCount: number;
+  @Column({ type: 'int', nullable: true })
+  brandMentionCount: number | null;
 
-  @Column({ type: 'text', array: true, default: '{}' })
-  competitorsMentioned: string[];
+  @Column({ type: 'text', array: true, nullable: true })
+  competitorsMentioned: string[] | null;
 
   @Column({ type: 'text', array: true, default: '{}' })
   citationDomains: string[];
