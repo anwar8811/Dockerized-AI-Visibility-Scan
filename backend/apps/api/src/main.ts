@@ -7,6 +7,12 @@ import { AppModule } from './app.module';
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
 
+  // The frontend (a separate origin, localhost:3001) calls this API
+  // directly from the browser - not part of the original brief (Swagger
+  // was the only intended client), added on top for the frontend. Default
+  // (all origins) is fine for this local practice project.
+  app.enableCors();
+
   // Validates every incoming request body against its DTO's class-validator
   // decorators (e.g. CreateScanDto) before it ever reaches a controller
   // method - an invalid body never touches the database or the queue.

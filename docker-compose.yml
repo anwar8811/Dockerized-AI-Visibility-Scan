@@ -140,5 +140,23 @@ services:
       retries: 5
       start_period: 5s
 
+  # Not part of the original brief (it explicitly says "no frontend" -
+  # Swagger is the only client) - added on top, by explicit request, as a
+  # simple UI for the EPIC-13 3-stage flow only (POST /scans/auto ->
+  # .../prompts -> .../analyze). Every API call happens client-side in the
+  # browser (not from inside this container), which is why `api` needs CORS
+  # enabled (backend/apps/api/src/main.ts) and why NEXT_PUBLIC_API_URL below
+  # points at api's host-published port, never the "api" Docker service name.
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL}
+    ports:
+      - "3001:3000"
+    depends_on:
+      api:
+        condition: service_healthy
+
 volumes:
   postgres_data:
