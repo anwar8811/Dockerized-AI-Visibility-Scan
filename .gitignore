@@ -16,6 +16,10 @@ target/
 .DS_Store
 *.log
 
+# Playwright MCP's own run artifacts (snapshots/console logs from
+# browser-testing sessions) - not part of the shipped code repo.
+.playwright-mcp/
+
 # Planning/local-only material - not part of the shipped code repo.
 # (Dev-docs template convention: this planning material lives alongside
 # the code repo, not inside its git history - see ai-visibility-scan-dev-docs
